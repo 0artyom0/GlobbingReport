@@ -757,7 +757,8 @@ class BitrixService
         $select = [
             'id',
             'ufCrm7_1740770891',
-            'ufCrm7_1753881696167'
+            'ufCrm7_1753881696167',
+            'assignedById',
         ];
 
         $params = [];
@@ -782,6 +783,9 @@ class BitrixService
 
     public function createActivityForTicket($ticket, $catId)
     {
+        if (!isset($ticket['assignedById'])) {
+            dd($ticket);
+        }
         return CRest::call(
             'crm.item.add',
             [
@@ -799,6 +803,9 @@ class BitrixService
 
     public function createActivityForActivity($ticket, $catId)
     {
+        if (!isset($ticket['assignedById'])) {
+            dd($ticket);
+        }
         return CRest::call(
             'crm.item.add',
             [
