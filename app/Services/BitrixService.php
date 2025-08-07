@@ -783,9 +783,6 @@ class BitrixService
 
     public function createActivityForTicket($ticket, $catId)
     {
-        if (!isset($ticket['assignedById'])) {
-            dd($ticket);
-        }
         return CRest::call(
             'crm.item.add',
             [
@@ -803,9 +800,6 @@ class BitrixService
 
     public function createActivityForActivity($ticket, $catId)
     {
-        if (!isset($ticket['assignedById'])) {
-            dd($ticket);
-        }
         return CRest::call(
             'crm.item.add',
             [
