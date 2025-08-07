@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\SmartProcess;
 use Carbon\Carbon;
 use CRest;
 use Exception;
@@ -96,7 +97,7 @@ class BitrixService
      * @param array $batchParam
      * @return array
      */
-    public function getTotalData(array $batchParam): array
+    public function getTotalData(array $batchParam, $isSmart = false): array
     {
         $result = [];
         $batchCount = ceil(count($batchParam) / 50);
@@ -107,6 +108,9 @@ class BitrixService
             $batchResult = Crest::callBatch($batchParams)['result']['result'] ?? [];
 
             foreach ($batchResult as $value) {
+                if ($isSmart) {
+                    $value = $value['items'];
+                }
                 $result = [...$result, ...$value];
             }
         }
@@ -135,6 +139,34 @@ class BitrixService
         $result = CRest::call('crm.item.get', [
             'id' => $elementId,
             'entityTypeId' => $entityTypeId,
+        ]);
+
+        if ($result['result'] ?? null) {
+            return $result['result']['item'];
+        }
+
+        return null;
+    }
+
+    public function getTicket($elementId)
+    {
+        $result = CRest::call('crm.item.get', [
+            'id' => $elementId,
+            'entityTypeId' => SmartProcess::TYPE_TICKET,
+        ]);
+
+        if ($result['result'] ?? null) {
+            return $result['result']['item'];
+        }
+
+        return null;
+    }
+
+    public function getActivity($elementId)
+    {
+        $result = CRest::call('crm.item.get', [
+            'id' => $elementId,
+            'entityTypeId' => 177,
         ]);
 
         if ($result['result'] ?? null) {
@@ -176,14 +208,29 @@ class BitrixService
         return null;
     }
 
-    public function updateSmartProcess($smartProcessId, $entityTypeId, $params): void
+    public function updateSmartProcess($smartProcessId, $entityTypeId, $params)
     {
-        CRest::call('crm.item.update', [
-                'entityTypeId' => $entityTypeId,
-                'id' => $smartProcessId,
-                'fields' => $params
-            ]
-        );
+        $smartProcess = $this->getSmartProcess($smartProcessId, $entityTypeId);
+
+        $toUpdate = false;
+
+        foreach ($params as $key => $value) {
+            if ($smartProcess[$key] != $value) {
+                $toUpdate = true;
+                break;
+            }
+        }
+
+        if ($toUpdate) {
+            return CRest::call('crm.item.update', [
+                    'entityTypeId' => $entityTypeId,
+                    'id' => $smartProcessId,
+                    'fields' => $params
+                ]
+            );
+        }
+
+        return null;
     }
 
     /**
@@ -310,13 +357,13 @@ class BitrixService
         ];
     }
 
-    public function createSmartProcess($entityTypeId, $data, $categoryId = null): void
+    public function createSmartProcess($entityTypeId, $data, $categoryId = null)
     {
         if (isset($categoryId)) {
             $data['categoryId'] = $categoryId;
         }
 
-        CRest::call(
+        return CRest::call(
             'crm.item.add',
             [
                 'entityTypeId' => $entityTypeId,
@@ -550,51 +597,53 @@ class BitrixService
         )['result'];
     }
 
-    public function assignElementToLead($leadId, $elementId, $key): void
+    public function assignElementToLead($lead, $elementId, $key): void
     {
-        Crest::call('crm.lead.update', [
-            'id' => $leadId,
-            'fields' => [
-                $key => $elementId,
-            ]
-        ]);
+        if ($lead[$key] != $elementId) {
+            Crest::call('crm.lead.update', [
+                'id' => $lead['ID'],
+                'fields' => [
+                    $key => $elementId,
+                ]
+            ]);
+        }
     }
 
-    public function getSmartProcessInfo($sourceId)
+    public function getSmartProcessInfo($sourceId): array
     {
         $entityTypeId = null;
         $categoryId = null;
 
         switch ($sourceId) {
             case 'UC_146HB0':
-                $entityTypeId = 136;
-                $categoryId = 9;
+                $entityTypeId = SmartProcess::TYPE_TICKET;
+                $categoryId = SmartProcess::CAT_COMMUNICATION_AM;
                 break;
 
             case 'UC_TBRNZZ':
-                $entityTypeId = 136;
-                $categoryId = 12;
+                $entityTypeId = SmartProcess::TYPE_TICKET;
+                $categoryId = SmartProcess::CAT_COMMUNICATION_KZ;
 
                 break;
             case 'UC_SESMBQ':
-                $entityTypeId = 136;
-                $categoryId = 13;
+                $entityTypeId = SmartProcess::TYPE_TICKET;
+                $categoryId = SmartProcess::CAT_COMMUNICATION_UZ;
 
                 break;
             case 'UC_ZCMAQL':
-                $entityTypeId = 136;
+                $entityTypeId = SmartProcess::TYPE_TICKET;
                 $categoryId = 32;
                 break;
             case 'UC_B0GW1L':
-                $entityTypeId = 136;
-                $categoryId = 30;
+                $entityTypeId = SmartProcess::TYPE_TICKET;
+                $categoryId = SmartProcess::CAT_BUSINESS_ARMENIA;
                 break;
             case 'UC_5KV3GR':
-                $entityTypeId = 136;
+                $entityTypeId = SmartProcess::TYPE_TICKET;
                 $categoryId = 33;
                 break;
             case 'UC_3LMZ5Y':
-                $entityTypeId = 136;
+                $entityTypeId = SmartProcess::TYPE_TICKET;
                 $categoryId = 34;
                 break;
         }
@@ -605,13 +654,203 @@ class BitrixService
         ];
     }
 
-    public function changeLeadStage($leadId, $stage): void
+    public function changeLeadStage($lead, $stage): void
     {
-        Crest::call('crm.lead.update', [
-            'id' => $leadId,
-            'fields' => [
-                'STATUS_ID' => $stage,
+        if ($lead['STATUS_ID'] != $stage) {
+            Crest::call('crm.lead.update', [
+                'id' => $lead['ID'],
+                'fields' => [
+                    'STATUS_ID' => $stage,
+                ]
+            ]);
+        }
+    }
+
+    public function getTicketsForUndone(): array
+    {
+        $startTime = Carbon::yesterday()->startOfDay()->addMinute()->toDateTimeString();
+        $endTime = Carbon::yesterday()->setTime(15, 59)->toDateTimeString();
+
+        $filters = [
+            '!=ufCrm6_1734527827434' => $startTime,
+            '<=ufCrm6_1734527827434' => $endTime,
+            '=categoryId' => [
+                SmartProcess::CAT_AM_TROUBLE,
+                SmartProcess::CAT_KZ_TROUBLE,
+                SmartProcess::CAT_UZ_TROUBLE,
+                SmartProcess::CAT_ABLY_TROUBLE,
+                SmartProcess::CAT_XXX_TROUBLE,
+                SmartProcess::CAT_BUSINESS_ARMENIA
+            ],
+            '=stageId' => [
+                SmartProcess::AM_TROUBLE_OPEN,
+                SmartProcess::AM_TROUBLE_IN_PROGRESS,
+                SmartProcess::AM_TROUBLE_WAITING_FOR_CUSTOMER,
+                SmartProcess::AM_TROUBLE_NO_ANSWER,
+                SmartProcess::AM_TROUBLE_FOLLOW_UP,
+
+                SmartProcess::KZ_TROUBLE_OPEN,
+                SmartProcess::KZ_TROUBLE_IN_PROGRESS,
+                SmartProcess::KZ_TROUBLE_WAITING_FOR_CUSTOMER,
+                SmartProcess::KZ_TROUBLE_NO_ANSWER,
+                SmartProcess::KZ_TROUBLE_FOLLOW_UP,
+
+                SmartProcess::UZ_TROUBLE_OPEN,
+                SmartProcess::UZ_TROUBLE_IN_PROGRESS,
+                SmartProcess::UZ_TROUBLE_WAITING_FOR_CUSTOMER,
+                SmartProcess::UZ_TROUBLE_NO_ANSWER,
+                SmartProcess::UZ_TROUBLE_FOLLOW_UP,
+
+                SmartProcess::ABLY_TROUBLE_OPEN,
+                SmartProcess::ABLY_TROUBLE_IN_PROGRESS,
+                SmartProcess::ABLY_TROUBLE_WAITING_FOR_CUSTOMER,
+                SmartProcess::ABLY_TROUBLE_NO_ANSWER,
+                SmartProcess::ABLY_TROUBLE_FOLLOW_UP,
+
+                SmartProcess::BUSINESS_ARMENIA_OPEN,
+                SmartProcess::BUSINESS_ARMENIA_IN_PROGRESS,
+                SmartProcess::BUSINESS_ARMENIA_WAITING_FOR_CUSTOMER,
+
+                SmartProcess::XXX_OPEN
             ]
-        ]);
+        ];
+
+        $select = [
+            'id',
+            'ufCrm6_1734527827434',
+            'stageId',
+            'ufCrm6_1753874960515',
+            'assignedById',
+        ];
+
+        $params = [];
+        $params['filter'] = $filters;
+        $params['select'] = $select;
+        $params['entityTypeId'] = 136;
+
+        $batchParam = [];
+
+        $total = CRest::call('crm.item.list', $params)['total'];
+
+        for ($i = 0; $i < $total; $i += 50) {
+            $params['start'] = $i;
+            $batchParam[$i] = [
+                'method' => 'crm.item.list',
+                'params' => $params,
+            ];
+        }
+
+        return $this->getTotalData($batchParam, true);
+    }
+
+    public function getActivitiesForUndone(): array
+    {
+        $startTime = Carbon::yesterday()->startOfDay()->addMinute()->toDateTimeString();
+        $endTime = Carbon::yesterday()->setTime(15, 59)->toDateTimeString();
+
+        $filters = [
+            '>ufCrm7_1740770891' => $startTime,
+            '<=ufCrm7_1740770891' => $endTime,
+            '!=stageId' => ['DT177_27:SUCCESS', 'DT177_27:FAIL']
+        ];
+
+        $select = [
+            'id',
+            'ufCrm7_1740770891',
+            'ufCrm7_1753881696167'
+        ];
+
+        $params = [];
+        $params['filter'] = $filters;
+        $params['select'] = $select;
+        $params['entityTypeId'] = 177;
+
+        $batchParam = [];
+
+        $total = CRest::call('crm.item.list', $params)['total'];
+
+        for ($i = 0; $i < $total; $i += 50) {
+            $params['start'] = $i;
+            $batchParam[$i] = [
+                'method' => 'crm.item.list',
+                'params' => $params,
+            ];
+        }
+
+        return $this->getTotalData($batchParam, true);
+    }
+
+    public function createActivityForTicket($ticket, $catId)
+    {
+        return CRest::call(
+            'crm.item.add',
+            [
+                'entityTypeId' => 177,
+                'fields' => [
+                    'categoryId' => $catId,
+                    'stageId' => 'DT177_26:SUCCESS',
+                    'assignedById' => $ticket['assignedById'],
+                    'ufCrm7_1739528027403' => $ticket['id'],
+                    'parentId136' => $ticket['id'],
+                ]
+            ]
+        );
+    }
+
+    public function createActivityForActivity($ticket, $catId)
+    {
+        return CRest::call(
+            'crm.item.add',
+            [
+                'entityTypeId' => SmartProcess::TYPE_ACTIVITY,
+                'fields' => [
+                    'categoryId' => $catId,
+                    'stageId' => 'DT177_26:SUCCESS',
+                    'assignedById' => $ticket['assignedById'],
+                    'ufCrm7_1744976546599' => $ticket['Id'],
+                ]
+            ]
+        );
+    }
+
+    public function incrementOverdueCount($smartProcessId, $entityTypeId): void
+    {
+        $smartProcess = $this->getSmartProcess($smartProcessId, $entityTypeId);
+
+        $currentCount = $smartProcess['ufCrm6_1751613519033'] ?? 0;
+        $count = $currentCount + 1;
+
+        $this->updateSmartProcess($smartProcessId, $entityTypeId, ['ufCrm6_1751613519033' => $count]);
+    }
+
+    public function getSmartProcessBizProcesses($entityTypeId, $smartProcessId): array
+    {
+        $documentId = "DYNAMIC_{$entityTypeId}_$smartProcessId";
+
+        $result = CRest::call('bizproc.workflow.instances', [
+                'filter' => [
+                    'DOCUMENT_ID' => $documentId,
+                ],
+            ]
+        );
+
+        if (!empty($result['result'])) {
+            return $result['result'];
+        }
+
+        return [];
+    }
+
+    public function killBizProcesses($bizProcesses)
+    {
+        foreach ($bizProcesses as $bizProcess) {
+            return CRest::call(
+                'bizproc.workflow.terminate',
+                [
+                    'ID' => $bizProcess['ID'],
+                    'STATUS' => 'Terminated by rest app.'
+                ]
+            );
+        }
     }
 }

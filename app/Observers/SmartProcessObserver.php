@@ -23,8 +23,7 @@ class SmartProcessObserver
             $user = $bx->getUser($userId);
             $departmentId = !empty($user['UF_DEPARTMENT']) ? $user['UF_DEPARTMENT'] : [];
             $fixedScheduleId = $bx->getFixedScheduleId($smartProcess->stageId);
-            $departmentId = [];
-            $scheduleId = $bx->getScheduleIdByDepartment($departmentId) ?? $bx->getScheduleIdByUser(3);
+            $scheduleId = $bx->getScheduleIdByDepartment($departmentId) ?? $bx->getScheduleIdByUser($userId);
             $scheduleId = $fixedScheduleId ?? $scheduleId;
 
             $schedule = $bx->getSchedule($scheduleId);
@@ -32,25 +31,21 @@ class SmartProcessObserver
             $holidays = $bx->getHolidays($exclusions);
             $oldDueDate = Carbon::now();
 
-            if ($entityTypeId == 136) {
+            if ($entityTypeId == SmartProcess::TYPE_TICKET) {
                 switch ($smartProcess->stageId) {
-                    // Open
-                    case 'DT136_14:NEW':
-                    case 'DT136_16:NEW':
-                    case 'DT136_17:NEW':
-                    case 'DT136_18:NEW':
+                    case SmartProcess::AM_TROUBLE_OPEN:
+                    case SmartProcess::UZ_TROUBLE_OPEN:
+                    case SmartProcess::ABLY_TROUBLE_OPEN:
 
-                        // In progress
-                    case 'DT136_14:PREPARATION':
-                    case 'DT136_16:PREPARATION':
-                    case 'DT136_17:PREPARATION':
-                    case 'DT136_18:PREPARATION':
+                    case SmartProcess::AM_TROUBLE_IN_PROGRESS:
+                    case SmartProcess::KZ_TROUBLE_IN_PROGRESS:
+                    case SmartProcess::UZ_TROUBLE_IN_PROGRESS:
+                    case SmartProcess::ABLY_TROUBLE_IN_PROGRESS:
 
-                        // Waiting for customer
-                    case 'DT136_14:UC_IFNSU8':
-                    case 'DT136_16:CLIENT':
-                    case 'DT136_17:CLIENT':
-                    case 'DT136_18:CLIENT':
+                    case SmartProcess::AM_TROUBLE_WAITING_FOR_CUSTOMER:
+                    case SmartProcess::KZ_TROUBLE_WAITING_FOR_CUSTOMER:
+                    case SmartProcess::UZ_TROUBLE_WAITING_FOR_CUSTOMER:
+                    case SmartProcess::ABLY_TROUBLE_WAITING_FOR_CUSTOMER:
 
                     case 'DT136_9:PREPARATION':
                     case 'DT136_9:UC_CE7CSL':
@@ -69,41 +64,49 @@ class SmartProcessObserver
                     case 'DT136_12:NEW':
                     case 'DT136_13:NEW':
                         $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 12, $holidays);
-                        dd($newDueDate);
                         $params['ufCrm6_1734527827434'] = $newDueDate;
                         $bx->updateSmartProcess($smartProcess->bitrix_id, $smartProcess->entityTypeId, $params);
 
                         break;
 
-                    // No answered
-                    case 'DT136_14:UC_K0NLHD':
-                    case 'DT136_16:UC_PHVTS5':
-                    case 'DT136_17:UC_ZVPHVD':
-                    case 'DT136_18:UC_4NJ3UO':
+                    case SmartProcess::AM_TROUBLE_NO_ANSWER:
+                    case SmartProcess::KZ_TROUBLE_NO_ANSWER:
+                    case SmartProcess::UZ_TROUBLE_NO_ANSWER:
+                    case SmartProcess::ABLY_TROUBLE_NO_ANSWER:
 
-                        // Follow Up
-                    case 'DT136_14:UC_URLCVA':
-                    case 'DT136_16:UC_T5BDVA':
-                    case 'DT136_17:UC_MEMKD8':
-                    case 'DT136_18:UC_28XZFS':
+                    case SmartProcess::AM_TROUBLE_FOLLOW_UP:
+                    case SmartProcess::KZ_TROUBLE_FOLLOW_UP:
+                    case SmartProcess::UZ_TROUBLE_FOLLOW_UP:
+                    case SmartProcess::ABLY_TROUBLE_FOLLOW_UP:
 
                     case 'DT136_32:NEW':
                     case 'DT136_33:NEW':
-                    case 'DT136_30:NEW':
-
+                    case SmartProcess::BUSINESS_ARMENIA_OPEN:
                         $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 4, $holidays);
+                        $params['ufCrm6_1734527827434'] = $newDueDate;
+                        $bx->updateSmartProcess($smartProcess->bitrix_id, $smartProcess->entityTypeId, $params);
+
+                        break;
+
+                    case SmartProcess::KZ_TROUBLE_OPEN:
+                        $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 2, $holidays);
                         $params['ufCrm6_1734527827434'] = $newDueDate;
                         $bx->updateSmartProcess($smartProcess->bitrix_id, $smartProcess->entityTypeId, $params);
 
                         break;
                     default:
                         if ($fixedScheduleId) {
-                            $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 8, $holidays);
+                            if (in_array($smartProcess->stageId, ['DT136_16:UC_7ELI19', 'DT136_16:UC_HSLT7R', 'DT136_16:UC_HU332O', 'DT136_16:UC_TLERGE', 'DT136_16:UC_VXODCU', 'DT136_16:UC_1VHFS7', 'DT136_16:UC_0NSPL8', 'DT136_16:UC_KZ8I21'])) {
+                                $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 4, $holidays);
+                            } else {
+                                $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 8, $holidays);
+                            }
+
                             $params['ufCrm6_1734527827434'] = $newDueDate;
                             $bx->updateSmartProcess($smartProcess->bitrix_id, $smartProcess->entityTypeId, $params);
                         }
                 }
-            } elseif ($entityTypeId == 1040) {
+            } elseif ($entityTypeId == SmartProcess::TYPE_CHILD_TICKET) {
                 switch ($smartProcess->stageId) {
                     case 'DT1040_22:NEW':
                     case 'DT1040_22:PREPARATION':
@@ -117,6 +120,25 @@ class SmartProcessObserver
                             $params['ufCrm9_1746797152'] = $newDueDate;
                             $bx->updateSmartProcess($smartProcess->bitrix_id, $smartProcess->entityTypeId, $params);
                         }
+                }
+            }
+            if ($entityTypeId == SmartProcess::TYPE_ACTIVITY) {
+                if (
+                    $smartProcess->stageId == 'DT177_10:NEW'
+                    || $smartProcess->stageId == 'DT177_23:NEW'
+                    || $smartProcess->stageId == 'DT177_24:NEW'
+                ) {
+                    $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 8, $holidays);
+                    $params['ufCrm7_1740770891'] = $newDueDate;
+                    $bx->updateSmartProcess($smartProcess->bitrix_id, $smartProcess->entityTypeId, $params);
+                } elseif ($smartProcess->stageId == 'DT177_20:NEW') {
+                    if ($userId == '90' || $userId == '364' || $userId == '105') {
+                        $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 2, $holidays);
+                    } else {
+                        $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 4, $holidays);
+                    }
+                    $params['ufCrm7_1740770891'] = $newDueDate;
+                    $bx->updateSmartProcess($smartProcess->bitrix_id, $smartProcess->entityTypeId, $params);
                 }
             }
         }
@@ -165,63 +187,62 @@ class SmartProcessObserver
             $holidays = $bx->getHolidays($exclusions);
             $oldDueDate = Carbon::now();
 
-            if ($entityTypeId == 177) {
+            if ($entityTypeId == SmartProcess::TYPE_ACTIVITY) {
+                $scheduleId = $bx->getScheduleIdByDepartment($departmentIds) ?? $bx->getScheduleIdByUser($userId);
+                $schedule = $bx->getSchedule($scheduleId);
                 if (
                     $smartProcess->stageId == 'DT177_10:NEW'
-                    || $smartProcess->stageId == 'DT177_20:NEW'
                     || $smartProcess->stageId == 'DT177_23:NEW'
                     || $smartProcess->stageId == 'DT177_24:NEW'
                 ) {
-                    $userId = $smartProcess->assignedById;
-                    $user = $bx->getUser($userId);
-                    $departmentId = !empty($user['UF_DEPARTMENT']) ? $user['UF_DEPARTMENT'][0] : null;
-                    $scheduleId = $bx->getScheduleIdByDepartment($departmentIds) ?? $bx->getScheduleIdByUser($userId);
-                    $schedule = $bx->getSchedule($scheduleId);
                     $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 8, $holidays);
                     $params['ufCrm7_1740770891'] = $newDueDate;
                     $bx->updateSmartProcess($smartProcess->bitrix_id, $smartProcess->entityTypeId, $params);
+                } elseif ($smartProcess->stageId == 'DT177_20:NEW') {
+                    if ($userId == '90' || $userId == '364' || $userId == '105') {
+                        $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 2, $holidays);
+                    } else {
+                        $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 4, $holidays);
+                    }
+                    $params['ufCrm7_1740770891'] = $newDueDate;
+                    $bx->updateSmartProcess($smartProcess->bitrix_id, $smartProcess->entityTypeId, $params);
                 }
-            } elseif ($entityTypeId == 136) {
+            } elseif ($entityTypeId == SmartProcess::TYPE_TICKET) {
                 switch ($smartProcess->stageId) {
-                    // Open
-                    case 'DT136_14:NEW':
-                    case 'DT136_16:NEW':
-                    case 'DT136_17:NEW':
-                    case 'DT136_18:NEW':
+                    case SmartProcess::AM_TROUBLE_OPEN:
+                    case SmartProcess::UZ_TROUBLE_OPEN:
+                    case SmartProcess::ABLY_TROUBLE_OPEN:
 
-                        // In progress
-                    case 'DT136_14:PREPARATION':
-                    case 'DT136_16:PREPARATION':
-                    case 'DT136_17:PREPARATION':
-                    case 'DT136_18:PREPARATION':
+                    case SmartProcess::AM_TROUBLE_IN_PROGRESS:
+                    case SmartProcess::KZ_TROUBLE_IN_PROGRESS:
+                    case SmartProcess::UZ_TROUBLE_IN_PROGRESS:
+                    case SmartProcess::ABLY_TROUBLE_IN_PROGRESS:
 
-                        // Waiting for customer
-                    case 'DT136_14:UC_IFNSU8':
-                    case 'DT136_16:CLIENT':
-                    case 'DT136_17:CLIENT':
-                    case 'DT136_18:CLIENT':
+                    case SmartProcess::AM_TROUBLE_WAITING_FOR_CUSTOMER:
+                    case SmartProcess::UZ_TROUBLE_WAITING_FOR_CUSTOMER:
+                    case SmartProcess::ABLY_TROUBLE_WAITING_FOR_CUSTOMER:
                         $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 8, $holidays);
                         $params['ufCrm6_1734527827434'] = $newDueDate;
                         $bx->updateSmartProcess($smartProcess->bitrix_id, $smartProcess->entityTypeId, $params);
 
                         break;
 
-                    // No answered
-                    case 'DT136_14:UC_K0NLHD':
-                    case 'DT136_16:UC_PHVTS5':
-                    case 'DT136_17:UC_ZVPHVD':
-                    case 'DT136_18:UC_4NJ3UO':
+                    case SmartProcess::AM_TROUBLE_NO_ANSWER:
+                    case SmartProcess::KZ_TROUBLE_NO_ANSWER:
+                    case SmartProcess::UZ_TROUBLE_NO_ANSWER:
+                    case SmartProcess::ABLY_TROUBLE_NO_ANSWER:
 
-                        // Follow Up
-                    case 'DT136_14:UC_URLCVA':
-                    case 'DT136_16:UC_T5BDVA':
-                    case 'DT136_17:UC_MEMKD8':
-                    case 'DT136_18:UC_28XZFS':
+                    case SmartProcess::AM_TROUBLE_FOLLOW_UP:
+                    case SmartProcess::KZ_TROUBLE_FOLLOW_UP:
+                    case SmartProcess::UZ_TROUBLE_FOLLOW_UP:
+                    case SmartProcess::ABLY_TROUBLE_FOLLOW_UP:
 
                     case 'DT136_32:NEW':
                     case 'DT136_33:NEW':
                     case 'DT136_30:NEW':
 
+                    case 'DT136_16:NEW':
+                    case 'DT136_16:CLIENT':
                         $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 4, $holidays);
                         $params['ufCrm6_1734527827434'] = $newDueDate;
                         $bx->updateSmartProcess($smartProcess->bitrix_id, $smartProcess->entityTypeId, $params);
@@ -229,12 +250,17 @@ class SmartProcessObserver
                         break;
                     default:
                         if ($fixedScheduleId) {
-                            $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 8, $holidays);
+                            if (in_array($smartProcess->stageId, ['DT136_16:UC_7ELI19', 'DT136_16:UC_HSLT7R', 'DT136_16:UC_HU332O', 'DT136_16:UC_TLERGE', 'DT136_16:UC_VXODCU', 'DT136_16:UC_1VHFS7', 'DT136_16:UC_0NSPL8', 'DT136_16:UC_KZ8I21'])) {
+                                $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 4, $holidays);
+                            } else {
+                                $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 8, $holidays);
+                            }
+
                             $params['ufCrm6_1734527827434'] = $newDueDate;
                             $bx->updateSmartProcess($smartProcess->bitrix_id, $smartProcess->entityTypeId, $params);
                         }
                 }
-            } elseif ($entityTypeId == 1040) {
+            } elseif ($entityTypeId == SmartProcess::TYPE_CHILD_TICKET) {
                 switch ($smartProcess->stageId) {
                     case 'DT1040_22:NEW':
                     case 'DT1040_22:PREPARATION':
@@ -253,8 +279,7 @@ class SmartProcessObserver
         }
     }
 
-    public
-    function deleted(SmartProcess $smartProcess): void
+    public function deleted(SmartProcess $smartProcess): void
     {
         SmartProcessActivity::where('element_id', $smartProcess->bitrix_id)
             ->where('entity_type_id', $smartProcess->entityTypeId)

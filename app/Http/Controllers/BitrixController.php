@@ -13,10 +13,8 @@ class BitrixController extends Controller
         $bx = new BitrixService();
 
         $data = $request->all();
-//        $smartProcessId = $data['data']['FIELDS']['ID'];
-        $smartProcessId = 145844;
-//        $entityTypeId = $data['data']['FIELDS']['ENTITY_TYPE_ID'];
-        $entityTypeId = 136;
+        $smartProcessId = $data['data']['FIELDS']['ID'];
+        $entityTypeId = $data['data']['FIELDS']['ENTITY_TYPE_ID'];
         $data['event'] = 'ONCRMDYNAMICITEMUPDATE';
         $smartProcess = $bx->getSmartProcess($smartProcessId, $entityTypeId);
 
@@ -45,7 +43,6 @@ class BitrixController extends Controller
             case 'ONCRMDYNAMICITEMUPDATE':
                 $smart = SmartProcess::where('bitrix_id', $smartProcess['bitrix_id'])
                     ->where('entityTypeId', $entityTypeId)->first();
-			\Log::info(['smart' => $smart]);
                 if ($smart) {
                     $smart->update([
                         'ufCrm6_1734527827434' => $smartProcess['ufCrm6_1734527827434'] ?? null, //136 DUE DATE
@@ -91,7 +88,6 @@ class BitrixController extends Controller
         $leadId = $data['data']['FIELDS']['ID'];
 
         $lead = $bx->getLead($leadId);
-		\Log::info(['lead'=>$lead]);
 
         $event = $data['event'];
 
@@ -119,12 +115,11 @@ class BitrixController extends Controller
                         $companyId = $bx->getCompanyByEmail($email);
 
                         if ($contactId) {
-                            $bx->assignElementToLead($leadId, $contactId, 'CONTACT_ID');
+                            $bx->assignElementToLead($lead, $contactId, 'CONTACT_ID');
                         }
 
                         if ($companyId) {
-                            $bx->assignElementToLead($leadId, $companyId, 'COMPANY_ID');
-
+                            $bx->assignElementToLead($lead, $companyId, 'COMPANY_ID');
                         }
 
                         $smartProcessInfo = $bx->getSmartProcessInfo($lead['SOURCE_ID']);
@@ -144,13 +139,72 @@ class BitrixController extends Controller
                         }
 
                         $bx->createSmartProcess($entityTypeId, $smartProcessData, $categoryId);
-                        $bx->changeLeadStage($leadId, 'JUNK');
+                        $bx->changeLeadStage($lead, 'JUNK');
 
-                        $url = "https://projects.globbing.com/machApps/attachEmailToSmart.php?token=aDRu4mai9FamAJ4PKuLArI29RxqbNd&lead_id=".$leadId;
+                        $url = "https://projects.globbing.com/machApps/attachEmailToSmart.php?token=aDRu4mai9FamAJ4PKuLArI29RxqbNd&lead_id=" . $leadId;
                         file_get_contents($url);
                     }
                 }
             }
         }
+    }
+
+    public function smartStage(Request $request): void
+    {
+        $data = $request->all();
+        $bx = new BitrixService();
+        $smartId = explode('_', $data['document_id'][2])[2];
+        $entityTypeId = explode('_', $data['document_id'][2])[1];
+
+        $smartProcessBizProcesses = $bx->getSmartProcessBizProcesses($entityTypeId, $smartId);
+
+        $bx->killBizProcesses($smartProcessBizProcesses);
+
+        $categoriesToExcludeForCreatingActivity = [
+            SmartProcess::CAT_COMMUNICATION_AM,
+            SmartProcess::CAT_COMMUNICATION_KZ,
+            SmartProcess::CAT_COMMUNICATION_UZ,
+            SmartProcess::CAT_COMMUNICATION_XXX,
+        ];
+
+        if ($entityTypeId == SmartProcess::TYPE_TICKET) {
+            $bxTicket = $bx->getTicket($smartId);
+
+            if ($bxTicket) {
+                if (!in_array($bxTicket['categoryId'], $categoriesToExcludeForCreatingActivity)) {
+                    $createdActivity = $bx->createActivityForTicket($bxTicket, SmartProcess::CAT_OVERDUE);
+
+                    if ($createdActivity['result'] ?? null) {
+                        $createdActivityId = $createdActivity['result']['item']['id'];
+
+                        $updateData = [
+                            'parentId177' => $createdActivityId,
+                        ];
+
+                        $bx->updateSmartProcess($smartId, SmartProcess::TYPE_TICKET, $updateData);
+
+                    }
+                }
+            }
+        } elseif ($entityTypeId == SmartProcess::TYPE_ACTIVITY) {
+            $bxActivity = $bx->getActivity($smartId);
+            if ($bxActivity) {
+                if (!in_array($bxActivity['categoryId'], $categoriesToExcludeForCreatingActivity)) {
+                    $createdActivity = $bx->createActivityForActivity($bxActivity, SmartProcess::CAT_OVERDUE);
+
+                    if ($createdActivity['result'] ?? null) {
+                        $createdActivityId = $createdActivity['result']['item']['id'];
+
+                        $updateData = [
+                            'parentId177' => $createdActivityId,
+                        ];
+
+                        $bx->updateSmartProcess($smartId, SmartProcess::TYPE_ACTIVITY, $updateData);
+                    }
+                }
+            }
+        }
+
+        $bx->incrementOverdueCount($smartId, $entityTypeId);
     }
 }

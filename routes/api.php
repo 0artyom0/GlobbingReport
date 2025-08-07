@@ -17,15 +17,17 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::get('filter-data',[\App\Http\Controllers\FilterDataController::class,'index']);
-Route::any('export-data',[\App\Http\Controllers\FilterDataController::class,'exportData']);
+//Route::get('filter-data',[\App\Http\Controllers\FilterDataController::class,'index']);
+//Route::any('export-data',[\App\Http\Controllers\FilterDataController::class,'exportData']);
 
 Route::post('webhook/smart-process', [BitrixController::class, 'smartProcess']);
 Route::post('webhook/lead', [BitrixController::class, 'lead']);
 
+Route::post('webhook/smart-stage', [BitrixController::class, 'smartStage']);
+
 Route::get('activities', [ActivityController::class, 'index']);
 
-//Tickets
 
-Route::post('tickets', [TicketController::class, 'index']);;
-Route::post('test', [TicketController::class, 'test']);
+//Route::post('tickets', [TicketController::class, 'index']);
+
+
