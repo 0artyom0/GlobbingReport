@@ -102,6 +102,21 @@ class BitrixController extends Controller
                 'UC_3LMZ5Y'
             ];
 
+            $needSourceIdsForSocialMessages = [
+                '14|5AAC45CD-0933',
+                '17|87C33B0B-F772',
+                '5|C2D_1GT_CONNECTOR',
+                '9202AAB6',
+                '6|C2D_1GT_CONNECTOR',
+                'UC_JOCFZN',
+                '24|725AC8CD-164F',
+                '3|FACEBOOK',
+                '4|FBINSTAGRAMDIRECT',
+                '23|1A0501FB-8E08',
+                'UC_HRUQN5',
+                'UC_U210J7'
+            ];
+
             if ($lead) {
                 if (in_array($lead['SOURCE_ID'], $needSourceIds)) {
                     $email = !empty($lead['EMAIL']) ? $lead['EMAIL'][0]['VALUE'] : null;
@@ -143,6 +158,45 @@ class BitrixController extends Controller
 
                         $url = "https://projects.globbing.com/machApps/attachEmailToSmart.php?token=aDRu4mai9FamAJ4PKuLArI29RxqbNd&lead_id=" . $leadId;
                         file_get_contents($url);
+                    }
+                } else if (in_array($lead['SOURCE_ID'], $needSourceIdsForSocialMessages)) {
+                    $email = !empty($lead['EMAIL']) ? $lead['EMAIL'][0]['VALUE'] : null;
+
+                    if ($email) {
+                        $contactId = $bx->getContactByEmail($email);
+                        if (!$contactId) {
+                            $contactId = $bx->createContact($email);
+                        }
+
+                        $companyId = $bx->getCompanyByEmail($email);
+
+                        if ($contactId) {
+                            $bx->assignElementToLead($lead, $contactId, 'CONTACT_ID');
+                        }
+
+                        if ($companyId) {
+                            $bx->assignElementToLead($lead, $companyId, 'COMPANY_ID');
+                        }
+
+                        $smartProcessInfo = $bx->getSmartProcessInfoForSocialMessages($lead['SOURCE_ID']);
+                        $entityTypeId = $smartProcessInfo['entityTypeId'];
+                        $categoryId = $smartProcessInfo['categoryId'];
+                        $smartProcessData = [
+                            'sourceId' => $lead['SOURCE_ID'],
+                            'parentId1' => $leadId
+                        ];
+
+                        if ($contactId) {
+                            $smartProcessData['contactId'] = $contactId;
+                        }
+
+                        if ($companyId) {
+                            $smartProcessData['companyId'] = $companyId;
+                        }
+
+
+                        $bx->createSmartProcess($entityTypeId, $smartProcessData, $categoryId);
+                        $bx->changeLeadStage($lead, 'JUNK');
                     }
                 }
             }

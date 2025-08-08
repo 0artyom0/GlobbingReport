@@ -654,6 +654,47 @@ class BitrixService
         ];
     }
 
+    public function getSmartProcessInfoForSocialMessages($sourceId): array
+    {
+        $entityTypeId = null;
+        $categoryId = null;
+
+        switch ($sourceId) {
+            case '6|C2D_1GT_CONNECTOR':
+            case 'UC_JOCFZN':
+                $entityTypeId = SmartProcess::TYPE_TICKET;
+                $categoryId = SmartProcess::CAT_COMMUNICATION_AM;
+                break;
+
+            case '14|5AAC45CD-0933':
+            case '17|87C33B0B-F772':
+            case '5|C2D_1GT_CONNECTOR':
+            case '9202AAB6':
+                $entityTypeId = SmartProcess::TYPE_TICKET;
+                $categoryId = SmartProcess::CAT_COMMUNICATION_KZ;
+
+                break;
+            case '24|725AC8CD-164F':
+            case '3|FACEBOOK':
+            case '4|FBINSTAGRAMDIRECT':
+                $entityTypeId = SmartProcess::TYPE_TICKET;
+                $categoryId = SmartProcess::CAT_COMMUNICATION_UZ;
+
+                break;
+            case '23|1A0501FB-8E08':
+            case 'UC_HRUQN5':
+            case 'UC_U210J7':
+                $entityTypeId = SmartProcess::TYPE_TICKET;
+                $categoryId = SmartProcess::CAT_COMMUNICATION_XXX;
+                break;
+        }
+
+        return [
+            'entityTypeId' => $entityTypeId,
+            'categoryId' => $categoryId,
+        ];
+    }
+
     public function changeLeadStage($lead, $stage): void
     {
         if ($lead['STATUS_ID'] != $stage) {
