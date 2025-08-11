@@ -597,6 +597,23 @@ class BitrixService
         )['result'];
     }
 
+    public function createContactWithPhone($phone)
+    {
+        return CRest::call(
+            'crm.contact.add',
+            [
+                'FIELDS' => [
+                    'PHONE' => [
+                        [
+                            'VALUE' => $phone,
+                            'VALUE_TYPE' => 'MAILING',
+                        ],
+                    ],
+                ]
+            ]
+        )['result'];
+    }
+
     public function assignElementToLead($lead, $elementId, $key): void
     {
         if ($lead[$key] != $elementId) {
@@ -695,10 +712,10 @@ class BitrixService
         ];
     }
 
-    public function changeLeadStage($lead, $stage): void
+    public function changeLeadStage($lead, $stage)
     {
         if ($lead['STATUS_ID'] != $stage) {
-            Crest::call('crm.lead.update', [
+            return Crest::call('crm.lead.update', [
                 'id' => $lead['ID'],
                 'fields' => [
                     'STATUS_ID' => $stage,
@@ -894,5 +911,35 @@ class BitrixService
                 ]
             );
         }
+    }
+
+    public function getContactByPhone($phone)
+    {
+        $result = CRest::call('crm.duplicate.findbycomm', [
+            'entity_type' => "CONTACT",
+            'type' => 'PHONE',
+            'values' => [$phone],
+        ]);
+
+        if ($result['result'] ?? null) {
+            return $result['result']['CONTACT'][0];
+        }
+
+        return null;
+    }
+
+    public function getCompanyByPhone($phone)
+    {
+        $result = CRest::call('crm.duplicate.findbycomm', [
+            'entity_type' => "COMPANY",
+            'type' => 'PHONE',
+            'values' => [$phone],
+        ]);
+
+        if ($result['result'] ?? null) {
+            return $result['result']['COMPANY'][0];
+        }
+
+        return null;
     }
 }

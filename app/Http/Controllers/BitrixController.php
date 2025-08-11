@@ -85,11 +85,12 @@ class BitrixController extends Controller
     {
         $data = $request->all();
         $bx = new BitrixService();
-        $leadId = $data['data']['FIELDS']['ID'];
-
+//        $leadId = $data['data']['FIELDS']['ID'];
+//        $leadId = '63587';
+        $leadId = '62082';
         $lead = $bx->getLead($leadId);
-
-        $event = $data['event'];
+//        $event = $data['event'];
+        $event = 'ONCRMLEADADD';
 
         if ($event == 'ONCRMLEADADD') {
             $needSourceIds = [
@@ -160,15 +161,15 @@ class BitrixController extends Controller
                         file_get_contents($url);
                     }
                 } else if (in_array($lead['SOURCE_ID'], $needSourceIdsForSocialMessages)) {
-                    $email = !empty($lead['EMAIL']) ? $lead['EMAIL'][0]['VALUE'] : null;
+                    $phone = !empty($lead['PHONE']) ? $lead['PHONE'][0]['VALUE'] : null;
 
-                    if ($email) {
-                        $contactId = $bx->getContactByEmail($email);
+                    if ($phone) {
+                        $contactId = $bx->getContactByPhone($phone);
                         if (!$contactId) {
-                            $contactId = $bx->createContact($email);
+                            $contactId = $bx->createContactWithPhone($phone);
                         }
 
-                        $companyId = $bx->getCompanyByEmail($email);
+                        $companyId = $bx->getCompanyByPhone($phone);
 
                         if ($contactId) {
                             $bx->assignElementToLead($lead, $contactId, 'CONTACT_ID');
@@ -178,13 +179,6 @@ class BitrixController extends Controller
                             $bx->assignElementToLead($lead, $companyId, 'COMPANY_ID');
                         }
 
-                        $smartProcessInfo = $bx->getSmartProcessInfoForSocialMessages($lead['SOURCE_ID']);
-                        $entityTypeId = $smartProcessInfo['entityTypeId'];
-                        $categoryId = $smartProcessInfo['categoryId'];
-                        $smartProcessData = [
-                            'sourceId' => $lead['SOURCE_ID'],
-                            'parentId1' => $leadId
-                        ];
 
                         if ($contactId) {
                             $smartProcessData['contactId'] = $contactId;
@@ -193,11 +187,19 @@ class BitrixController extends Controller
                         if ($companyId) {
                             $smartProcessData['companyId'] = $companyId;
                         }
-
-
-                        $bx->createSmartProcess($entityTypeId, $smartProcessData, $categoryId);
-                        $bx->changeLeadStage($lead, 'JUNK');
                     }
+
+
+                    $smartProcessInfo = $bx->getSmartProcessInfoForSocialMessages($lead['SOURCE_ID']);
+                    $entityTypeId = $smartProcessInfo['entityTypeId'];
+                    $categoryId = $smartProcessInfo['categoryId'];
+                    $smartProcessData = [
+                        'sourceId' => $lead['SOURCE_ID'],
+                        'parentId1' => $leadId
+                    ];
+
+                    $bx->createSmartProcess($entityTypeId, $smartProcessData, $categoryId);
+                    $bx->changeLeadStage($lead, 'JUNK');
                 }
             }
         }

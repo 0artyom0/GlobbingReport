@@ -52,18 +52,11 @@ class SmartProcessObserver
                     case 'DT136_12:PREPARATION':
                     case 'DT136_12:UC_MWE4ZI':
                     case 'DT136_13:PREPARATION':
+                    case 'DT136_13:NEW':
+                    case 'DT136_12:NEW':
+                    case 'DT136_9:NEW':
                     case 'DT136_13:UC_DHDLV5':
                         $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 8, $holidays);
-                        $params['ufCrm6_1734527827434'] = $newDueDate;
-                        $bx->updateSmartProcess($smartProcess->bitrix_id, $smartProcess->entityTypeId, $params);
-
-                        break;
-
-                    // Communication AM, Communication KZ, Communication UZ
-                    case 'DT136_9:NEW':
-                    case 'DT136_12:NEW':
-                    case 'DT136_13:NEW':
-                        $newDueDate = $bx->getNewDueDate($oldDueDate, $schedule, 12, $holidays);
                         $params['ufCrm6_1734527827434'] = $newDueDate;
                         $bx->updateSmartProcess($smartProcess->bitrix_id, $smartProcess->entityTypeId, $params);
 
