@@ -85,12 +85,9 @@ class BitrixController extends Controller
     {
         $data = $request->all();
         $bx = new BitrixService();
-//        $leadId = $data['data']['FIELDS']['ID'];
-//        $leadId = '63587';
-        $leadId = '62082';
+        $leadId = $data['data']['FIELDS']['ID'];
         $lead = $bx->getLead($leadId);
-//        $event = $data['event'];
-        $event = 'ONCRMLEADADD';
+        $event = $data['event'];
 
         if ($event == 'ONCRMLEADADD') {
             $needSourceIds = [
